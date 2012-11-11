@@ -8,6 +8,8 @@
 
 int CurrentWidth = 800;
 int CurrentHeight = 600;
+unsigned FrameCount = 0;
+
 int WindowHandle = 0;
 
 
@@ -15,6 +17,9 @@ void Initialize(int, char*[]);
 void InitWindow(int, char*[]);
 void ResizeFunction(int, int);
 void RenderFunction(void);
+void TimerFunction(int);
+void IdleFunction(void);
+
 
 
 int
@@ -81,6 +86,9 @@ InitWindow(int argc, char* argv[])
 
     glutReshapeFunc(ResizeFunction);
     glutDisplayFunc(RenderFunction);
+    glutIdleFunc(IdleFunction);
+    glutTimerFunc(0, TimerFunction, 0);
+
 }
 
 
@@ -97,7 +105,38 @@ ResizeFunction(int Width, int Height)
 void
 RenderFunction()
 {
+	++FrameCount;
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glutSwapBuffers();
     glutPostRedisplay();
+}
+
+
+void IdleFunction(void)
+{
+	glutPostRedisplay();
+}
+
+
+void TimerFunction(int Value)
+{
+	if (0 != Value) {
+		char* TempString = (char*)
+			malloc(512 + strlen(WINDOW_TITLE_PREFIX));
+
+		sprintf(
+			TempString,
+			"%s: %d Frames Per Second @ %d x %d",
+			WINDOW_TITLE_PREFIX,
+			FrameCount * 4,
+			CurrentWidth,
+			CurrentHeight
+		);
+
+		glutSetWindowTitle(TempString);
+		free(TempString);
+	}
+
+	FrameCount = 0;
+	glutTimerFunc(250, TimerFunction, 1);
 }
