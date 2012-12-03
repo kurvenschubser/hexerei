@@ -94,10 +94,10 @@ test_shader_parsing()
 {
 	hx_shader_registry_t *reg = HxShaderRegistry_new();
 
-	hx_str_t *folder_name = HxStr_new("/media/md127/entwicklung/eclipse/workspace/hexerei/src/shaders");
+	hx_str_t *folder_name = HxStr_new("/media/md127/entwicklung/eclipse/workspace/hexerei/src/shaders/simple-shader");
 	HxShaderRegistry_load(reg, folder_name);
 
-	hx_str_t *program_name = HxStr_new("shaders");
+	hx_str_t *program_name = HxStr_new("simple-shader");
 	hx_glprogram_t *program = HxShaderRegistry_get(reg, program_name);
 	HxShaderRegistry_unregister(reg, program_name);
 	HxStr_del(program_name);
