@@ -19,8 +19,15 @@
         THE SOFTWARE.
 */
 
+#include "SOIL/SOIL.h"
+#include <time.h>
+
+#include "hx_str.h"
+#include "hx_shaderregistry.h"
 #include "hx_utils.h"
-#define WINDOW_TITLE_PREFIX "Chapter 4"
+
+
+#define WINDOW_TITLE_PREFIX "Textures"
 
 
 int CurrentWidth = 800,
@@ -34,8 +41,9 @@ GLuint
         ProjectionMatrixUniformLocation,
         ViewMatrixUniformLocation,
         ModelMatrixUniformLocation,
-        BufferIds[3] = { 0 },
-        ShaderIds[3] = { 0 };
+        BufferIds[4] = { 0 },
+        ShaderIds[6] = { 0 },
+		TextureIds[1] = { 0 };
 
 
 Matrix
@@ -51,9 +59,11 @@ clock_t LastTime = 0;
 
 
 
+void test_shader_parsing(void);
 void Initialize(int, char*[]);
 void InitWindow(int, char*[]);
 void SetupEventHandlers(void);
+void SetupTextures(void);
 void ResizeFunction(int, int);
 void RenderFunction(void);
 void TimerFunction(int);
@@ -68,11 +78,31 @@ void DrawCube(void);
 int
 main(int argc, char* argv[])
 {
-        Initialize(argc, argv);
+	test_shader_parsing();
 
-        glutMainLoop();
+	/*
+	Initialize(argc, argv);
+	glutMainLoop();
+	*/
 
-        exit(EXIT_SUCCESS);
+	exit(EXIT_SUCCESS);
+}
+
+
+void
+test_shader_parsing()
+{
+	hx_shader_registry_t *reg = HxShaderRegistry_new();
+
+	hx_str_t *folder_name = HxStr_new("/media/md127/entwicklung/eclipse/workspace/hexerei/src/shaders");
+	HxShaderRegistry_load(reg, folder_name);
+
+	hx_str_t *program_name = HxStr_new("shaders");
+	hx_glprogram_t *program = HxShaderRegistry_get(reg, program_name);
+	HxShaderRegistry_unregister(reg, program_name);
+	HxStr_del(program_name);
+	HxStr_del(folder_name);
+	HxShaderRegistry_del(reg);
 }
 
 
@@ -83,6 +113,7 @@ Initialize(int argc, char* argv[])
 
         InitWindow(argc, argv);
         SetupEventHandlers();
+        SetupTextures();
 
         glewExperimental = GL_TRUE;
         GlewInitResult = glewInit();
@@ -166,6 +197,31 @@ SetupEventHandlers()
 }
 
 
+void
+SetupTextures()
+{
+	char buf[512];
+	getcwd(buf, sizeof(buf));
+	printf("getCWD = %s\n", buf);
+
+
+	TextureIds[0] = SOIL_load_OGL_texture(
+			"resources/test-texture/woodCrate007Sample.png",
+			SOIL_LOAD_AUTO,
+			SOIL_CREATE_NEW_ID,
+			SOIL_FLAG_INVERT_Y
+	);
+	if (TextureIds[0] == 0)
+	{
+		printf("SOIL loading error: '%s'\n", SOIL_last_result());
+		exit(1);
+	}
+	glBindTexture(GL_TEXTURE_3D, TextureIds[0]);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+}
+
+
 void MotionFunction(int x, int y)
 {
 	float step = 1;
@@ -181,8 +237,8 @@ void MotionFunction(int x, int y)
 	int dirx = mousestate.curx - mousestate.lastx;
 	int diry = mousestate.lasty - mousestate.cury;
 
-	if (mousestate.button_is_pressed[GLUT_LEFT_BUTTON]
-		 && mousestate.button_is_pressed[GLUT_RIGHT_BUTTON]
+	if ((mousestate.button_is_pressed[GLUT_LEFT_BUTTON]
+		 && mousestate.button_is_pressed[GLUT_RIGHT_BUTTON])
 		 || mousestate.button_is_pressed[GLUT_MIDDLE_BUTTON])
 	{
 		TranslateMatrix(
@@ -231,7 +287,7 @@ ResizeFunction(int Width, int Height)
                         100.0f
                 );
 
-        glUseProgram(ShaderIds[0]);
+        glUseProgram(ShaderIds[3]);
         glUniformMatrix4fv(ProjectionMatrixUniformLocation, 1, GL_FALSE, ProjectionMatrix.m);
         glUseProgram(0);
 }
@@ -262,8 +318,7 @@ void
 TimerFunction(int Value)
 {
         if (0 != Value) {
-                char* TempString = (char*)
-                        malloc(512 + strlen(WINDOW_TITLE_PREFIX));
+                char* TempString = (char *)Hx_Utils_allocate(512 + strlen(WINDOW_TITLE_PREFIX));
 
                 sprintf(
                         TempString,
@@ -289,6 +344,9 @@ TimerFunction(int Value)
 void
 CreateCube()
 {
+		int vertex_attrib_array_index_for_Vertex_Position = 0;
+	    int vertex_attrib_array_index_for_Vertex_Color = 1;
+
         const Vertex VERTICES[8] =
         {
                 { { -.5f, -.5f,  .5f, 1 }, { 0, 0, 1, 1 } },
@@ -311,14 +369,21 @@ CreateCube()
                 7,5,6,  7,4,5
         };
 
+        const GLuint TEXCOORDS[4] =
+        {
+        		0, 1, 2, 3
+        };
+
+        /*
         ShaderIds[0] = glCreateProgram();
         ExitOnGLError("ERROR: Could not create the shader program");
         {
-                ShaderIds[1] = LoadShader("Debug/SimpleShader.fragment.glsl", GL_FRAGMENT_SHADER);
-                ShaderIds[2] = LoadShader("Debug/SimpleShader.vertex.glsl", GL_VERTEX_SHADER);
+                ShaderIds[1] = LoadShader("src/shaders/SimpleShader.fragment.glsl", GL_FRAGMENT_SHADER);
+                ShaderIds[2] = LoadShader("src/shaders/SimpleShader.vertex.glsl", GL_VERTEX_SHADER);
                 glAttachShader(ShaderIds[0], ShaderIds[1]);
                 glAttachShader(ShaderIds[0], ShaderIds[2]);
         }
+
         glLinkProgram(ShaderIds[0]);
         ExitOnGLError("ERROR: Could not link the shader program");
 
@@ -327,29 +392,80 @@ CreateCube()
         ProjectionMatrixUniformLocation = glGetUniformLocation(ShaderIds[0], "ProjectionMatrix");
         ExitOnGLError("ERROR: Could not get shader uniform locations");
 
+        glEnableVertexAttribArray(vertex_attrib_array_index_for_Vertex_Position);
+        glEnableVertexAttribArray(vertex_attrib_array_index_for_Vertex_Color);
+        ExitOnGLError("ERROR: Could not enable vertex attributes");
+        */
+
+        ShaderIds[3] = glCreateProgram();
+		ExitOnGLError("ERROR: Could not create shader program");
+		{
+				//ShaderIds[4] = LoadShader("src/shaders/texture.vertex.glsl", GL_VERTEX_SHADER);
+				//ShaderIds[5] = LoadShader("src/shaders/texture.fragment.glsl", GL_FRAGMENT_SHADER);
+
+				glAttachShader(ShaderIds[3], ShaderIds[4]);
+				glAttachShader(ShaderIds[3], ShaderIds[5]);
+		}
+		glLinkProgram(ShaderIds[3]);
+		ExitOnGLError("ERROR: Could not link the shader program");
+
+		ModelMatrixUniformLocation = glGetUniformLocation(ShaderIds[3], "m");
+		ExitOnGLError("ERROR: Could not get shader uniform location 'm'");
+
+		ViewMatrixUniformLocation = glGetUniformLocation(ShaderIds[3], "v");
+		ExitOnGLError("ERROR: Could not get shader uniform location 'v'");
+
+		ProjectionMatrixUniformLocation = glGetUniformLocation(ShaderIds[3], "p");
+		ExitOnGLError("ERROR: Could not get shader uniform location 'p'");
+
         glGenVertexArrays(1, &BufferIds[0]);
         ExitOnGLError("ERROR: Could not generate the VAO");
         glBindVertexArray(BufferIds[0]);
         ExitOnGLError("ERROR: Could not bind the VAO");
 
-        glEnableVertexAttribArray(0);
-        glEnableVertexAttribArray(1);
-        ExitOnGLError("ERROR: Could not enable vertex attributes");
-
-        glGenBuffers(2, &BufferIds[1]);
+        glGenBuffers(3, &BufferIds[1]);
         ExitOnGLError("ERROR: Could not generate the buffer objects");
 
+        // create buffer for vertices
         glBindBuffer(GL_ARRAY_BUFFER, BufferIds[1]);
         glBufferData(GL_ARRAY_BUFFER, sizeof(VERTICES), VERTICES, GL_STATIC_DRAW);
         ExitOnGLError("ERROR: Could not bind the VBO to the VAO");
 
-        glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(VERTICES[0]), (GLvoid*)0);
-        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(VERTICES[0]), (GLvoid*)sizeof(VERTICES[0].Position));
-        ExitOnGLError("ERROR: Could not set VAO attributes");
+        /*
+        // define the offset between the 2 structures inside struct Vertex
+        // coordinate part
+        glVertexAttribPointer(
+        		vertex_attrib_array_index_for_Vertex_Position,
+        		4,
+        		GL_FLOAT,
+        		GL_FALSE,
+        		sizeof(VERTICES[0]),
+        		(GLvoid*)0
+        );
 
+        // color part
+        glVertexAttribPointer(
+        		vertex_attrib_array_index_for_Vertex_Color,
+        		4,
+        		GL_FLOAT,
+        		GL_FALSE,
+        		sizeof(VERTICES[0]),
+        		(GLvoid*)sizeof(VERTICES[0].Position)
+        );
+        ExitOnGLError("ERROR: Could not set VAO attributes");
+        */
+
+
+        // create buffer for indices to the vertices
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, BufferIds[2]);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(INDICES), INDICES, GL_STATIC_DRAW);
         ExitOnGLError("ERROR: Could not bind the IBO to the VAO");
+
+        // create buffer for texture coordinates
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, BufferIds[3]);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(TEXCOORDS), TEXCOORDS, GL_STATIC_DRAW);
+		ExitOnGLError("ERROR: Could not bind the Texture Vertex Buffer to the VAO");
+
 
         glBindVertexArray(0);
 }
@@ -388,18 +504,31 @@ DrawCube(void)
         RotateAboutY(&ModelMatrix, CubeAngle);
         RotateAboutX(&ModelMatrix, CubeAngle);
 
-        glUseProgram(ShaderIds[0]);
-        ExitOnGLError("ERROR: Could not use the shader program");
+        //glUseProgram(ShaderIds[0]);
+        //ExitOnGLError("ERROR: Could not use the shader program");
 
-        glUniformMatrix4fv(ModelMatrixUniformLocation, 1, GL_FALSE, ModelMatrix.m);
-        glUniformMatrix4fv(ViewMatrixUniformLocation, 1, GL_FALSE, ViewMatrix.m);
-        ExitOnGLError("ERROR: Could not set the shader uniforms");
+        //glUniformMatrix4fv(ModelMatrixUniformLocation, 1, GL_FALSE, ModelMatrix.m);
+        //glUniformMatrix4fv(ViewMatrixUniformLocation, 1, GL_FALSE, ViewMatrix.m);
+        //ExitOnGLError("ERROR: Could not set the shader uniforms");
 
+        // Bind the actual vertex data
         glBindVertexArray(BufferIds[0]);
         ExitOnGLError("ERROR: Could not bind the VAO for drawing purposes");
 
-        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (GLvoid*)0);
-        ExitOnGLError("ERROR: Could not draw the cube");
+        // Bind the index buffer object (mapping to the actual vertices, to conserve RAM)
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, BufferIds[2]);
+
+        //glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (GLvoid *)0);
+        //ExitOnGLError("ERROR: Could not draw the cube");
+
+        glUseProgram(ShaderIds[3]);
+        ExitOnGLError("ERROR: Could not use the shader program");
+
+        glUniformMatrix4fv(ModelMatrixUniformLocation, 1, GL_FALSE, ModelMatrix.m);
+		glUniformMatrix4fv(ViewMatrixUniformLocation, 1, GL_FALSE, ViewMatrix.m);
+		ExitOnGLError("ERROR: Could not set the shader uniforms");
+
+        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, (GLvoid *)0);
 
         glBindVertexArray(0);
         glUseProgram(0);
